@@ -7,6 +7,70 @@ import Foundation
 import UIKit
 import CoreImage
 
+// Attempt to import real FastVLM frameworks if present
+#if canImport(FastVLM)
+import FastVLM
+import MLX
+import MLXLMCommon
+import MLXRandom
+import MLXVLM
+#endif
+
+// Provide lightweight stub implementations when FastVLM frameworks are not linked.
+#if !canImport(FastVLM)
+@objc public class GenerateParameters: NSObject {
+    @objc public var temperature: Double
+    @objc public init(temperature: Double) { self.temperature = temperature }
+}
+
+@objc public class UserInput: NSObject {
+    @objc public let text: String
+    @objc public let images: [UIImage]
+    @objc public init(text: String, images: [UIImage]) {
+        self.text = text
+        self.images = images
+    }
+}
+
+@MainActor
+class FastVLMModel: NSObject {
+    var running: Bool = false
+    var modelInfo: String = ""
+    var output: String = ""
+    let generateParameters = GenerateParameters(temperature: 0.0)
+    private var currentTask: Task<Void, Never>? = nil
+    private let delayNanos: UInt64 = 200_000_000 // 200ms simulated latency
+
+    override init() { super.init() }
+
+    func load() async {
+        modelInfo = "Loaded (stub)"
+    }
+
+    func generate(_ userInput: UserInput) async -> Task<Void, Never> {
+        currentTask?.cancel()
+        running = true
+        let task = Task { [weak self] in
+            guard let self else { return }
+            try? await Task.sleep(nanoseconds: delayNanos)
+            if Task.isCancelled { return }
+            await MainActor.run {
+                self.output = "[Stub] Response for prompt: \(userInput.text)"
+                self.running = false
+            }
+        }
+        currentTask = task
+        return task
+    }
+
+    func cancel() {
+        currentTask?.cancel()
+        currentTask = nil
+        running = false
+    }
+}
+#endif
+
 @objc public class FastVLMBridge: NSObject {
     
     @objc public static let shared = FastVLMBridge()
