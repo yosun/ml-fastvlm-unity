@@ -18,7 +18,9 @@
     "name": "FastVLM Team",
     "email": "support@fastvlm.com"
   },
-  "dependencies": {},
+  "dependencies": {
+    "com.unity.ugui": "1.0.0"
+  },
   "samples": [
     {
       "displayName": "Basic FastVLM Example",
