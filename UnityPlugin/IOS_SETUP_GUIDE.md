@@ -248,6 +248,37 @@ public class CameraVLM : MonoBehaviour
 - Ensure Swift files are properly included
 - Verify framework dependencies
 
+### Automatic MLX Framework Copy
+
+The build processor now tries to automatically copy MLX frameworks (MLX*, FastVLM.framework) into the generated Xcode project's `Frameworks/` folder.
+
+Copy order / search locations (first match wins):
+1. Environment variable `FASTVLM_MLX_FRAMEWORKS_DIR`
+2. `Assets/Plugins/iOS/MLXFrameworks/`
+3. `ml-fastvlm-unity/app/Frameworks/`
+4. Top-level `Frameworks/` directory next to the Unity project
+
+Provide the frameworks by placing them in one of these locations (or set the env var before launching Unity). If none are found, a stub Swift implementation is used and you'll see a log: `FastVLM: No MLX frameworks found to copy`.
+
+Alternatively, you can supply a config file with a download URL:
+
+1. Copy `FastVLMFrameworksConfig.example.json` to `Assets/FastVLMFrameworksConfig.json`.
+2. Edit the `mlxFrameworksZipUrl` to point to a zip containing the MLX*.framework bundles (flat or nested).
+3. Build for iOS; the build processor will download once per session (if frameworks missing) and place them under `Assets/Plugins/iOS/MLXFrameworks/`.
+
+Environment variable still takes precedence over the config file.
+
+Environment variable example (macOS):
+```bash
+export FASTVLM_MLX_FRAMEWORKS_DIR="/absolute/path/to/your/MLXFrameworkBuild"
+open -a Unity
+```
+
+After a successful copy you should see a log like:
+```
+FastVLM: Copied 6 MLX frameworks to Xcode project (of 6).
+```
+
 ### Performance Debugging
 
 1. **Enable Debug Mode**: Set `debugMode = true` in FastVLMiOS component

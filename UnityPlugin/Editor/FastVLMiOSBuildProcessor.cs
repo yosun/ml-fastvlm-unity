@@ -239,7 +239,14 @@ namespace FastVLM.Unity.Editor
                 string assetsPluginDir = Path.Combine(Application.dataPath, "Plugins/iOS/MLXFrameworks");
                 if (HasAllFrameworks(assetsPluginDir)) return;
 
+                // 1. Environment variable
                 string zipUrl = System.Environment.GetEnvironmentVariable("FASTVLM_MLX_FRAMEWORKS_ZIP_URL");
+
+                // 2. Config file fallback if env var not provided
+                if (string.IsNullOrEmpty(zipUrl))
+                {
+                    zipUrl = ReadZipUrlFromConfig();
+                }
                 if (string.IsNullOrEmpty(zipUrl)) return; // nothing to do
 
                 Directory.CreateDirectory(assetsPluginDir);
@@ -294,6 +301,52 @@ namespace FastVLM.Unity.Editor
                 if (!Directory.Exists(Path.Combine(rootDir, fw))) return false;
             }
             return true;
+        }
+
+        private static string ReadZipUrlFromConfig()
+        {
+            try
+            {
+                string[] candidateConfigs = {
+                    Path.Combine(Application.dataPath, "FastVLMFrameworksConfig.json"),
+                    Path.Combine(Application.dataPath, "../UnityPlugin/FastVLMFrameworksConfig.json"),
+                    Path.Combine(Application.dataPath, "../Packages/com.fastvlm.unity/FastVLMFrameworksConfig.json")
+                };
+
+                foreach (var cfg in candidateConfigs)
+                {
+                    if (File.Exists(cfg))
+                    {
+                        string json = File.ReadAllText(cfg);
+                        // naive extraction to avoid adding JSON lib: look for "mlxFrameworksZipUrl"
+                        const string key = "mlxFrameworksZipUrl";
+                        int idx = json.IndexOf(key);
+                        if (idx >= 0)
+                        {
+                            int colon = json.IndexOf(':', idx);
+                            if (colon > 0)
+                            {
+                                int quote1 = json.IndexOf('"', colon + 1);
+                                int quote2 = json.IndexOf('"', quote1 + 1);
+                                if (quote1 > 0 && quote2 > quote1)
+                                {
+                                    string val = json.Substring(quote1 + 1, quote2 - quote1 - 1).Trim();
+                                    if (!string.IsNullOrEmpty(val))
+                                    {
+                                        Debug.Log($"FastVLM: Using MLX frameworks zip URL from config {cfg}");
+                                        return val;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogWarning($"FastVLM: Failed reading FastVLMFrameworksConfig.json: {ex.Message}");
+            }
+            return null;
         }
 #endif
 
