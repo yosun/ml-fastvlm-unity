@@ -26,13 +26,9 @@ namespace FastVLM.Unity.Editor
             string targetGuid = project.GetUnityMainTargetGuid();
             string frameworkTargetGuid = project.GetUnityFrameworkTargetGuid();
 
-            // First copy MLX & FastVLM frameworks if available so they can be added
-            CopyMLXFrameworks(pathToBuiltProject);
-                // Copy FastVLM main framework if available
-                CopyFastVLMFramework(pathToBuiltProject);
-
-                // Auto-copy MLX dependency frameworks if present in known locations
-                AutoCopyMLXFrameworks(pathToBuiltProject);
+            // Copy FastVLM framework if present and auto-copy MLX dependency frameworks
+            CopyFastVLMFramework(pathToBuiltProject);
+            AutoCopyMLXFrameworks(pathToBuiltProject);
 
             // Add FastVLM framework and dependencies (after copy so presence is detected)
             AddFrameworks(project, targetGuid, frameworkTargetGuid, pathToBuiltProject);
@@ -46,6 +42,11 @@ namespace FastVLM.Unity.Editor
             project.SetBuildProperty(targetGuid, "SWIFT_VERSION", "5.0");
             project.SetBuildProperty(frameworkTargetGuid, "SWIFT_VERSION", "5.0");
             project.SetBuildProperty(targetGuid, "ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES", "YES");
+            project.SetBuildProperty(frameworkTargetGuid, "ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES", "YES");
+
+            // Ensure runpath search paths include Frameworks dir (both targets)
+            project.AddBuildProperty(targetGuid, "LD_RUNPATH_SEARCH_PATHS", "$(inherited) @executable_path/Frameworks @loader_path/Frameworks");
+            project.AddBuildProperty(frameworkTargetGuid, "LD_RUNPATH_SEARCH_PATHS", "$(inherited) @executable_path/Frameworks @loader_path/Frameworks");
             
             // Add required capabilities
             string entitlementsPath = Path.Combine(pathToBuiltProject, "Unity-iPhone.entitlements");
@@ -66,7 +67,7 @@ namespace FastVLM.Unity.Editor
             // Write the modified project
             project.WriteToFile(projectPath);
             
-                Debug.Log("FastVLM iOS build configuration completed. If Xcode reports 'Framework MLX not found', manually place MLX*.framework bundles into Xcode Frameworks/ then rebuild.");
+            Debug.Log("FastVLM iOS build configuration completed. If Xcode still reports 'Framework MLX not found', confirm MLX*.framework exist inside Xcode Frameworks/ and have correct architectures (device + simulator if using xcframework).");
 #endif
         }
 
@@ -170,7 +171,7 @@ namespace FastVLM.Unity.Editor
             }
         }
 #if UNITY_IOS
-        private static readonly string[] MLXFrameworkNames = {
+    private static readonly string[] MLXFrameworkNames = {
             "MLX.framework",
             "MLXFast.framework",
             "MLXNN.framework",
@@ -179,7 +180,7 @@ namespace FastVLM.Unity.Editor
             "MLXLMCommon.framework"
         };
 
-        private static void AutoCopyMLXFrameworks(string buildPath)
+    private static void AutoCopyMLXFrameworks(string buildPath)
         {
             string envDir = System.Environment.GetEnvironmentVariable("FASTVLM_MLX_FRAMEWORKS_DIR");
             string assetsPluginDir = Path.Combine(Application.dataPath, "Plugins/iOS/MLXFrameworks");
@@ -190,7 +191,7 @@ namespace FastVLM.Unity.Editor
             string destFrameworksDir = Path.Combine(buildPath, "Frameworks");
             Directory.CreateDirectory(destFrameworksDir);
 
-            int copied = 0; int expected = MLXFrameworkNames.Length; int available = 0;
+            int copied = 0; int expected = MLXFrameworkNames.Length; var missing = new System.Collections.Generic.List<string>(MLXFrameworkNames);
             foreach (var root in searchRoots)
             {
                 if (string.IsNullOrEmpty(root) || !Directory.Exists(root)) continue;
@@ -200,11 +201,11 @@ namespace FastVLM.Unity.Editor
                     string src = Path.Combine(root, fw);
                     if (Directory.Exists(src))
                     {
-                        available++;
                         string dest = Path.Combine(destFrameworksDir, fw);
                         if (Directory.Exists(dest)) Directory.Delete(dest, true);
                         CopyDirectory(src, dest);
                         copied++;
+                        missing.Remove(fw);
                     }
                 }
                 if (copied == expected) break; // all done
@@ -212,7 +213,10 @@ namespace FastVLM.Unity.Editor
 
             if (copied > 0)
             {
-                Debug.Log($"FastVLM: Copied {copied} MLX frameworks to Xcode project (of {expected}).");
+                if (missing.Count == 0)
+                    Debug.Log($"FastVLM: Copied all {expected} MLX frameworks.");
+                else
+                    Debug.LogWarning($"FastVLM: Copied {copied}/{expected} MLX frameworks. Missing: {string.Join(", ", missing)} (will attempt build; stubs used for missing).");
             }
             else
             {
@@ -220,58 +224,7 @@ namespace FastVLM.Unity.Editor
             }
         }
 #endif
-        
-        private static void CopyMLXFrameworks(string buildPath)
-        {
-            string[] expected = {
-                "MLX.framework",
-                "MLXFast.framework",
-                "MLXNN.framework",
-                "MLXRandom.framework",
-                "MLXVLM.framework",
-                "MLXLMCommon.framework"
-            };
 
-            // Candidate source directories (highest priority first)
-            string envDir = System.Environment.GetEnvironmentVariable("FASTVLM_MLX_FRAMEWORKS_DIR");
-            string[] candidateDirs = {
-                string.IsNullOrEmpty(envDir) ? null : envDir,
-                Path.Combine(Application.dataPath, "Plugins/iOS/MLXFrameworks"),
-                Path.Combine(Application.dataPath, "../ml-fastvlm-unity/app/Frameworks"),
-                Path.Combine(Application.dataPath, "../Frameworks")
-            };
-
-            string frameworksDest = Path.Combine(buildPath, "Frameworks");
-            Directory.CreateDirectory(frameworksDest);
-
-            int copied = 0;
-            foreach (string framework in expected)
-            {
-                string sourcePath = null;
-                foreach (string dir in candidateDirs)
-                {
-                    if (string.IsNullOrEmpty(dir)) continue;
-                    string candidate = Path.Combine(dir, framework);
-                    if (Directory.Exists(candidate)) { sourcePath = candidate; break; }
-                }
-                if (sourcePath != null)
-                {
-                    string destPath = Path.Combine(frameworksDest, framework);
-                    if (Directory.Exists(destPath)) Directory.Delete(destPath, true);
-                    CopyDirectory(sourcePath, destPath);
-                    copied++;
-                }
-            }
-
-            if (copied > 0)
-            {
-                Debug.Log($"FastVLM: Copied {copied} MLX frameworks to Xcode project (of {expected.Length}).");
-            }
-            else
-            {
-                Debug.Log("FastVLM: No MLX frameworks found to copy (will use stub Swift layer). Set FASTVLM_MLX_FRAMEWORKS_DIR env var to automate.");
-            }
-        }
 
         private static void CopyDirectory(string sourceDir, string destinationDir)
         {
