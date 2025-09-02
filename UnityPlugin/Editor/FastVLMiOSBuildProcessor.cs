@@ -59,7 +59,7 @@ namespace FastVLM.Unity.Editor
             // Write the modified project
             project.WriteToFile(projectPath);
             
-            Debug.Log("FastVLM iOS build configuration completed successfully.");
+                Debug.Log("FastVLM iOS build configuration completed. If Xcode reports 'Framework MLX not found', manually place MLX*.framework bundles into Xcode Frameworks/ then rebuild.");
 #endif
         }
 
@@ -75,23 +75,32 @@ namespace FastVLM.Unity.Editor
             project.AddFrameworkToProject(frameworkTargetGuid, "Metal.framework", false);
             project.AddFrameworkToProject(frameworkTargetGuid, "MetalKit.framework", false);
             
-            // Add MLX frameworks (these need to be included in the project)
-            string[] mlxFrameworks = {
-                "MLX.framework",
-                "MLXFast.framework", 
-                "MLXNN.framework",
-                "MLXRandom.framework",
-                "MLXVLM.framework",
-                "MLXLMCommon.framework"
-            };
-            
-            foreach (string framework in mlxFrameworks)
-            {
-                string frameworkPath = "Frameworks/" + framework;
-                string fileGuid = project.AddFile(frameworkPath, frameworkPath, PBXSourceTree.Source);
-                project.AddFileToBuild(frameworkTargetGuid, fileGuid);
-                project.AddFrameworkToProject(frameworkTargetGuid, framework, false);
-            }
+                // Optionally add MLX frameworks if the developer has copied them into the build's Frameworks directory.
+                string[] mlxFrameworks = {
+                    "MLX.framework",
+                    "MLXFast.framework",
+                    "MLXNN.framework",
+                    "MLXRandom.framework",
+                    "MLXVLM.framework",
+                    "MLXLMCommon.framework"
+                };
+
+                string frameworksDir = Path.Combine(pathToBuiltProject, "Frameworks");
+                foreach (string framework in mlxFrameworks)
+                {
+                    string onDisk = Path.Combine(frameworksDir, framework);
+                    if (Directory.Exists(onDisk))
+                    {
+                        string frameworkPath = "Frameworks/" + framework;
+                        string fileGuid = project.AddFile(frameworkPath, frameworkPath, PBXSourceTree.Source);
+                        project.AddFileToBuild(frameworkTargetGuid, fileGuid);
+                        project.AddFrameworkToProject(frameworkTargetGuid, framework, false);
+                    }
+                    else
+                    {
+                        // Skip silently; user might rely on stub Swift layer.
+                    }
+                }
         }
         
         private static void ConfigureBuildSettings(PBXProject project, string targetGuid, string frameworkTargetGuid)
