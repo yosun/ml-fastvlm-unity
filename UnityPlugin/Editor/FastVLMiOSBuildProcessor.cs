@@ -2,6 +2,8 @@ using System.IO;
 using UnityEngine;
 using UnityEditor;
 using UnityEditor.Callbacks;
+using System.Net;
+using System.IO.Compression;
 
 #if UNITY_IOS
 using UnityEditor.iOS.Xcode;
@@ -25,6 +27,9 @@ namespace FastVLM.Unity.Editor
             // Get the main target
             string targetGuid = project.GetUnityMainTargetGuid();
             string frameworkTargetGuid = project.GetUnityFrameworkTargetGuid();
+
+            // Ensure MLX frameworks downloaded/placed if user supplied ZIP URL
+            TryFetchMLXFrameworks();
 
             // Copy FastVLM framework if present and auto-copy MLX dependency frameworks
             CopyFastVLMFramework(pathToBuiltProject);
@@ -222,6 +227,73 @@ namespace FastVLM.Unity.Editor
             {
                 Debug.LogWarning("FastVLM: No MLX frameworks found to copy. Using stub Swift layer. Set FASTVLM_MLX_FRAMEWORKS_DIR or place frameworks in Assets/Plugins/iOS/MLXFrameworks.");
             }
+        }
+#endif
+
+#if UNITY_IOS
+        private static void TryFetchMLXFrameworks()
+        {
+            try
+            {
+                // If all frameworks already present in any search dir, skip
+                string assetsPluginDir = Path.Combine(Application.dataPath, "Plugins/iOS/MLXFrameworks");
+                if (HasAllFrameworks(assetsPluginDir)) return;
+
+                string zipUrl = System.Environment.GetEnvironmentVariable("FASTVLM_MLX_FRAMEWORKS_ZIP_URL");
+                if (string.IsNullOrEmpty(zipUrl)) return; // nothing to do
+
+                Directory.CreateDirectory(assetsPluginDir);
+                string tempDir = Path.Combine(Path.GetTempPath(), "fastvlm_mlx_fw");
+                if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+                Directory.CreateDirectory(tempDir);
+                string zipPath = Path.Combine(tempDir, "mlx_frameworks.zip");
+
+                using (var wc = new WebClient())
+                {
+                    Debug.Log($"FastVLM: Downloading MLX frameworks archive from {zipUrl} ...");
+                    wc.DownloadFile(zipUrl, zipPath);
+                }
+
+                ZipFile.ExtractToDirectory(zipPath, tempDir);
+
+                // Move any found *.framework folders into assetsPluginDir
+                int moved = 0;
+                foreach (var fwName in MLXFrameworkNames)
+                {
+                    var found = Directory.GetDirectories(tempDir, fwName, SearchOption.AllDirectories);
+                    foreach (var src in found)
+                    {
+                        string dest = Path.Combine(assetsPluginDir, fwName);
+                        if (Directory.Exists(dest)) Directory.Delete(dest, true);
+                        CopyDirectory(src, dest);
+                        moved++;
+                    }
+                }
+
+                if (moved > 0)
+                {
+                    Debug.Log($"FastVLM: Placed {moved} MLX frameworks from downloaded archive into {assetsPluginDir}.");
+                    AssetDatabase.Refresh();
+                }
+                else
+                {
+                    Debug.LogWarning("FastVLM: Download succeeded but no MLX *.framework bundles found inside archive.");
+                }
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogWarning($"FastVLM: Failed to fetch MLX frameworks automatically: {ex.Message}");
+            }
+        }
+
+        private static bool HasAllFrameworks(string rootDir)
+        {
+            if (string.IsNullOrEmpty(rootDir) || !Directory.Exists(rootDir)) return false;
+            foreach (var fw in MLXFrameworkNames)
+            {
+                if (!Directory.Exists(Path.Combine(rootDir, fw))) return false;
+            }
+            return true;
         }
 #endif
 
