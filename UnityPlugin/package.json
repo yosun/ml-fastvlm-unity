@@ -26,6 +26,11 @@
       "displayName": "Basic FastVLM Example",
       "description": "Basic example showing how to use FastVLM for vision-language inference",
       "path": "Samples~/BasicExample"
+    },
+    {
+      "displayName": "Barebones FastVLM Scene",
+      "description": "Minimal scene (BarebonesFastVLM.unity) with helper component for quick testing",
+      "path": "Samples~/Barebones"
     }
   ]
 }
