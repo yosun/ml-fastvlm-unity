@@ -5,7 +5,7 @@
     "com.unity.modules.unitywebrequesttexture": "1.0.0",
     "com.unity.modules.imageconversion": "1.0.0",
     "com.unity.modules.ui": "1.0.0",
-    "com.fastvlm.unity": "file:../UnityPlugin"
+  "com.fastvlm.unity": "file:com.fastvlm.unity"
   },
   "registry": "https://packages.unity.com"
 }

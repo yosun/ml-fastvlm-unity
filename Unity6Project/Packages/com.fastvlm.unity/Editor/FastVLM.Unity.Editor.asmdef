@@ -1,0 +1,18 @@
+{
+    "name": "FastVLM.Unity.Editor",
+    "rootNamespace": "FastVLM.Unity.Editor",
+    "references": [
+        "FastVLM.Unity.Runtime"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
