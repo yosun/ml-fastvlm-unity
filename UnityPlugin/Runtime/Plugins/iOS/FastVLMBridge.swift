@@ -71,6 +71,7 @@ class FastVLMModel: NSObject {
 }
 #endif
 
+@MainActor
 @objc public class FastVLMBridge: NSObject {
     
     @objc public static let shared = FastVLMBridge()
